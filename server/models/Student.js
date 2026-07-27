@@ -12,12 +12,20 @@ const studentSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    resume: {
+  type: String,
+},
+
+resumePublicId: {
+  type: String,
+},
 
     password: {
       type: String,
       required: true,
     },
   },
+    
   {
     timestamps: true,
   }

@@ -1,3 +1,4 @@
+import resumeRoutes from "./routes/resumeRoutes.js";
 import applicationRoutes from "./routes/applicationRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import companyRoutes from "./routes/companyRoutes.js";
@@ -23,6 +24,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/company", companyRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/resume", resumeRoutes);
 
 // Test Route
 app.get("/", (req, res) => {
