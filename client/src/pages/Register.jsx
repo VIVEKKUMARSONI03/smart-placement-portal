@@ -35,22 +35,16 @@ function Register() {
       toast.success(data.message);
 
       navigate("/login");
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Registration Failed. Please make sure the backend is running.";
 
-  } catch (error) {
-
-  console.log("ERROR:", error);
-
-  console.log("STATUS:", error.response?.status);
-
-  console.log("DATA:", error.response?.data);
-
-  toast.error(
-    error.response?.data?.message || "Registration Failed"
-  );
-
-} finally {
-  setLoading(false);
-}
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

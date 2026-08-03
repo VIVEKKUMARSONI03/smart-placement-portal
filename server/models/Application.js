@@ -7,14 +7,27 @@ const applicationSchema = new mongoose.Schema(
       ref: "Student",
       required: true,
     },
+
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
+
     job: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Job",
       required: true,
     },
+
     status: {
       type: String,
-      enum: ["Pending", "Shortlisted", "Rejected", "Selected"],
+      enum: [
+        "Pending",
+        "Shortlisted",
+        "Rejected",
+        "Selected",
+      ],
       default: "Pending",
     },
   },
@@ -23,6 +36,9 @@ const applicationSchema = new mongoose.Schema(
   }
 );
 
-const Application = mongoose.model("Application", applicationSchema);
+const Application = mongoose.model(
+  "Application",
+  applicationSchema
+);
 
 export default Application;

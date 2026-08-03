@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 function Login() {
+
   const navigate = useNavigate();
 
   const { setStudent } = useContext(AuthContext);
@@ -20,43 +21,60 @@ function Login() {
   });
 
   const handleChange = (e) => {
+
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+
   };
 
   const handleSubmit = async (e) => {
+
     e.preventDefault();
 
     try {
+
       setLoading(true);
 
       const data = await loginStudent(formData);
 
+      console.log("LOGIN RESPONSE:", data);
+
+      // Save Token
       localStorage.setItem("token", data.token);
 
+      // Save Role
+      localStorage.setItem("role", "student");
+
+      // Save Logged-in Student
       setStudent(data.student);
 
       toast.success(data.message);
 
-      navigate("/");
+      // Go to Dashboard
+      navigate("/dashboard");
 
     } catch (error) {
-  console.log(error);
-  console.log(error.response);
-  console.log(error.response?.data);
 
-  toast.error(
-    error.response?.data?.message || "Login Failed"
-  );
+      console.log(error);
+
+      toast.error(
+        error.response?.data?.message ||
+        error.message ||
+        "Login Failed"
+      );
 
     } finally {
+
       setLoading(false);
+
     }
+
   };
 
   return (
+
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-4">
 
       <div className="w-full max-w-md bg-[#1E293B] rounded-2xl shadow-2xl border border-slate-700 p-8">
@@ -69,10 +87,7 @@ function Login() {
           Welcome Back 👋
         </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-8 space-y-5"
-        >
+        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
 
           <div>
 
@@ -129,11 +144,13 @@ function Login() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-3 text-slate-400"
               >
+
                 {showPassword ? (
                   <EyeOff size={20} />
                 ) : (
                   <Eye size={20} />
                 )}
+
               </button>
 
             </div>
@@ -143,10 +160,11 @@ function Login() {
           <button
             type="submit"
             disabled={loading}
-            onClick={() => console.log("Button Clicked")}
             className="w-full bg-purple-600 hover:bg-purple-700 transition rounded-lg py-3 font-semibold text-white"
           >
+
             {loading ? "Logging In..." : "Login"}
+
           </button>
 
         </form>
@@ -154,7 +172,9 @@ function Login() {
       </div>
 
     </div>
+
   );
+
 }
 
 export default Login;

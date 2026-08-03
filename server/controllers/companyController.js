@@ -1,60 +1,76 @@
 import Company from "../models/Company.js";
+import Application from "../models/Application.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
-export const createCompany = async (req, res) => {
+// ===================================
+// Company Register
+// ===================================
+
+export const registerCompany = async (req, res) => {
   try {
-    const { name, email, website, location, description } = req.body;
 
-    // Check if company already exists
-    const companyExists = await Company.findOne({ email });
+    const {
+      name,
+      email,
+      password,
+      website,
+      location,
+      description,
+    } = req.body;
 
-    if (companyExists) {
+    const exists = await Company.findOne({ email });
+
+    if (exists) {
       return res.status(400).json({
         success: false,
         message: "Company already exists",
       });
-      
     }
-      
-    // Create new company
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const company = await Company.create({
       name,
       email,
+      password: hashedPassword,
       website,
       location,
       description,
     });
 
+    const companyData = company.toObject();
+
+    delete companyData.password;
+
     res.status(201).json({
       success: true,
-      message: "Company created successfully",
-      company,
+      message: "Company Registered Successfully",
+      company: companyData,
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-export const getCompanies = async (req, res) => {
-  try {
-    const companies = await Company.find();
 
-    res.status(200).json({
-      success: true,
-      count: companies.length,
-      companies,
-    });
   } catch (error) {
+
+    console.log(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
 };
-export const getCompanyById = async (req, res) => {
+
+// ===================================
+// Company Login
+// ===================================
+
+export const loginCompany = async (req, res) => {
   try {
-    const company = await Company.findById(req.params.id);
+
+    const { email, password } = req.body;
+
+    const company = await Company.findOne({ email }).select("+password");
 
     if (!company) {
       return res.status(404).json({
@@ -63,66 +79,103 @@ export const getCompanyById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      company,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-export const updateCompany = async (req, res) => {
-  try {
-    const company = await Company.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+    const isMatch = await bcrypt.compare(
+      password,
+      company.password
+    );
+
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Credentials",
+      });
+    }
+
+    const token = jwt.sign(
       {
-        new: true,
-        runValidators: true,
+        id: company._id,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
       }
     );
 
-    if (!company) {
-      return res.status(404).json({
-        success: false,
-        message: "Company not found",
-      });
-    }
+    const companyData = company.toObject();
+
+    delete companyData.password;
 
     res.status(200).json({
       success: true,
-      message: "Company updated successfully",
-      company,
+      message: "Login Successful",
+      token,
+      company: companyData,
     });
+
   } catch (error) {
+
+    console.log(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
 };
-export const deleteCompany = async (req, res) => {
-  try {
-    const company = await Company.findByIdAndDelete(req.params.id);
 
-    if (!company) {
-      return res.status(404).json({
-        success: false,
-        message: "Company not found",
-      });
-    }
+// ===================================
+// Get All Companies
+// ===================================
+
+export const getCompanies = async (req, res) => {
+  try {
+
+    const companies = await Company.find().select("-password");
 
     res.status(200).json({
       success: true,
-      message: "Company deleted successfully",
+      companies,
     });
+
   } catch (error) {
+
+    console.log(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
+  }
+};
+
+// ===================================
+// Get Company Applicants
+// ===================================
+
+export const getApplicants = async (req, res) => {
+  try {
+
+    const applications = await Application.find({
+      company: req.company._id,
+    })
+      .populate("student", "name email resume")
+      .populate("job", "title");
+
+    res.status(200).json({
+      success: true,
+      applications,
+    });
+
+  } catch (error) {
+
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
   }
 };

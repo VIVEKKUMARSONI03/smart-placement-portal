@@ -1,14 +1,22 @@
 import Application from "../models/Application.js";
 import Job from "../models/Job.js";
+import Notification from "../models/Notification.js";
 
-// Student Apply Job
+// ===================================
+// Apply Job
+// ===================================
+
 export const applyJob = async (req, res) => {
   try {
-    const { student, job } = req.body;
 
-    const jobExists = await Job.findById(job);
+    const { jobId } = req.body;
 
-    if (!jobExists) {
+    const job = await Job.findById(jobId).populate(
+      "company",
+      "companyName name"
+    );
+
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: "Job not found",
@@ -16,95 +24,158 @@ export const applyJob = async (req, res) => {
     }
 
     const alreadyApplied = await Application.findOne({
-      student,
-      job,
+      student: req.student._id,
+      job: jobId,
     });
 
     if (alreadyApplied) {
       return res.status(400).json({
         success: false,
-        message: "Already applied for this job",
+        message: "Already Applied",
       });
     }
 
     const application = await Application.create({
-      student,
-      job,
+      student: req.student._id,
+      company: job.company._id,
+      job: jobId,
+      status: "Pending",
+    });
+
+    // ===============================
+    // Create Notification
+    // ===============================
+
+    await Notification.create({
+      student: req.student._id,
+      title: "Job Application Submitted",
+      message: `You successfully applied for ${job.title} at ${
+        job.company.companyName || job.company.name || "Company"
+      }.`,
+      type: "application",
     });
 
     res.status(201).json({
       success: true,
-      message: "Application submitted successfully",
+      message: "Application Submitted Successfully",
       application,
     });
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
 };
-// Get All Applications
-export const getApplications = async (req, res) => {
-  try {
-    const applications = await Application.find()
-      .populate("student", "name email")
-      .populate({
-        path: "job",
-        populate: {
-          path: "company",
-          select: "name email",
-        },
-      });
 
-    res.status(200).json({
+// ===================================
+// My Applications
+// ===================================
+
+export const myApplications = async (req, res) => {
+
+  try {
+
+    const applications = await Application.find({
+      student: req.student._id,
+    })
+      .populate("job")
+      .populate("company", "companyName name");
+
+    res.json({
       success: true,
-      count: applications.length,
       applications,
     });
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
+
 };
+
+// ===================================
 // Update Application Status
+// ===================================
+
 export const updateApplicationStatus = async (req, res) => {
+
   try {
-    console.log("Body:", req.body);
 
     const { status } = req.body;
-    console.log("Status:", status);
 
-    const application = await Application.findById(req.params.id);
+    const application = await Application.findById(req.params.id)
+      .populate("student")
+      .populate("job");
 
     if (!application) {
+
       return res.status(404).json({
         success: false,
         message: "Application not found",
       });
-    }
 
-    console.log("Before:", application.status);
+    }
 
     application.status = status;
 
     await application.save();
 
-    console.log("After:", application.status);
+    // ===============================
+    // Notification on Status Change
+    // ===============================
+
+    let title = "";
+    let message = "";
+
+    if (status === "Shortlisted") {
+
+      title = "Congratulations 🎉";
+      message = `You have been shortlisted for ${application.job.title}.`;
+
+    } else if (status === "Selected") {
+
+      title = "Congratulations 🥳";
+      message = `You have been selected for ${application.job.title}.`;
+
+    } else if (status === "Rejected") {
+
+      title = "Application Update";
+      message = `Your application for ${application.job.title} was rejected.`;
+
+    }
+
+    if (title) {
+
+      await Notification.create({
+        student: application.student._id,
+        title,
+        message,
+        type: status.toLowerCase(),
+      });
+
+    }
 
     res.status(200).json({
       success: true,
       message: "Application status updated successfully",
       application,
     });
+
   } catch (error) {
-    console.error(error);
 
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
+
 };

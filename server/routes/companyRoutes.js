@@ -1,26 +1,31 @@
 import express from "express";
+
 import {
-  createCompany,
+  registerCompany,
+  loginCompany,
   getCompanies,
-  getCompanyById,
-  updateCompany,
-  deleteCompany,
+  getApplicants,
 } from "../controllers/companyController.js";
 
-const router = express.Router();
-// Create Company
-router.post("/create", createCompany);
+import companyAuth from "../middleware/companyAuth.js";
 
-// Get All Companies
+const router = express.Router();
+
+// =========================
+// Public Routes
+// =========================
+
+router.post("/register", registerCompany);
+
+router.post("/login", loginCompany);
+
 router.get("/", getCompanies);
 
-// Get Single Company
-router.get("/:id", getCompanyById);
+// =========================
+// Protected Routes
+// =========================
 
-// Update Company
-router.put("/:id", updateCompany);
-
-// Delete Company
-router.delete("/:id", deleteCompany);
+// Get all applicants of logged-in company
+router.get("/applicants", companyAuth, getApplicants);
 
 export default router;
