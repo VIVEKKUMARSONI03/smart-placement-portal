@@ -36,6 +36,12 @@ const applicationSchema = new mongoose.Schema(
   }
 );
 
+// Prevent the same student from applying to the same job twice
+applicationSchema.index(
+  { student: 1, job: 1 },
+  { unique: true }
+);
+
 const Application = mongoose.model(
   "Application",
   applicationSchema

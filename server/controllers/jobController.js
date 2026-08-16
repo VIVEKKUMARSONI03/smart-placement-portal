@@ -16,23 +16,88 @@ export const createJob = async (req, res) => {
       deadline,
     } = req.body;
 
+    // ==============================
+    // Basic Validation
+    // ==============================
+
+    if (
+      !title ||
+      !location ||
+      !salary ||
+      !description ||
+      !deadline
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Title, location, salary, description and deadline are required",
+      });
+    }
+
+    // ==============================
+    // Validate Deadline
+    // ==============================
+
+    const deadlineDate = new Date(deadline);
+
+    if (isNaN(deadlineDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid deadline",
+      });
+    }
+
+    if (deadlineDate <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "Deadline must be a future date",
+      });
+    }
+
+    // ==============================
+    // Validate Skills
+    // ==============================
+
+    let processedSkills = skills;
+
+    if (typeof skills === "string") {
+      processedSkills = skills
+        .split(",")
+        .map((skill) => skill.trim())
+        .filter((skill) => skill.length > 0);
+    }
+
+    if (
+      !Array.isArray(processedSkills) ||
+      processedSkills.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one skill is required",
+      });
+    }
+
+    // ==============================
+    // Create Job
+    // ==============================
+
     const job = await Job.create({
-      title,
-      location,
+      title: title.trim(),
+      location: location.trim(),
       salary,
-      description,
-      skills,
-      deadline,
+      description: description.trim(),
+      skills: processedSkills,
+      deadline: deadlineDate,
       company: req.company._id,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Job created successfully",
       job,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -45,17 +110,22 @@ export const createJob = async (req, res) => {
 
 export const getJobs = async (req, res) => {
   try {
-    const jobs = await Job.find()
-      .populate("company", "name email location website")
+    const jobs = await Job.find({
+      deadline: { $gte: new Date() },
+    })
+      .populate(
+        "company",
+        "companyName name email location website"
+      )
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: jobs.length,
       jobs,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -72,13 +142,13 @@ export const getMyJobs = async (req, res) => {
       company: req.company._id,
     }).sort({ createdAt: -1 });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: jobs.length,
       jobs,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -93,7 +163,7 @@ export const getJobById = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id).populate(
       "company",
-      "name email website location"
+      "companyName name email website location"
     );
 
     if (!job) {
@@ -103,12 +173,12 @@ export const getJobById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       job,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -133,17 +203,68 @@ export const updateJob = async (req, res) => {
       });
     }
 
+    // ==============================
+    // Validate Deadline if provided
+    // ==============================
+
+    if (req.body.deadline) {
+      const deadlineDate = new Date(req.body.deadline);
+
+      if (isNaN(deadlineDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid deadline",
+        });
+      }
+
+      if (deadlineDate <= new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: "Deadline must be a future date",
+        });
+      }
+
+      req.body.deadline = deadlineDate;
+    }
+
+    // ==============================
+    // Process Skills if provided
+    // ==============================
+
+    if (req.body.skills) {
+      if (typeof req.body.skills === "string") {
+        req.body.skills = req.body.skills
+          .split(",")
+          .map((skill) => skill.trim())
+          .filter((skill) => skill.length > 0);
+      }
+
+      if (
+        !Array.isArray(req.body.skills) ||
+        req.body.skills.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "At least one skill is required",
+        });
+      }
+    }
+
+    // ==============================
+    // Update Job
+    // ==============================
+
     Object.assign(job, req.body);
 
     await job.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Job updated successfully",
       job,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -170,24 +291,24 @@ export const deleteJob = async (req, res) => {
 
     await job.deleteOne();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Job deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+
 // ==============================
 // Recommended Jobs (AI)
 // ==============================
 
 export const getRecommendedJobs = async (req, res) => {
   try {
-
     const student = await Student.findById(req.student._id);
 
     if (!student || !student.resume) {
@@ -197,35 +318,32 @@ export const getRecommendedJobs = async (req, res) => {
       });
     }
 
-    const jobs = await Job.find().populate(
-      "company",
-      "name location"
-    );
+    // Only recommend active jobs
+    const jobs = await Job.find({
+      deadline: { $gte: new Date() },
+    }).populate("company", "companyName name location");
 
     const resumeText = student.resume.toLowerCase();
 
     const recommendedJobs = jobs.filter((job) => {
-
-      if (!job.skills || job.skills.length === 0) return false;
+      if (!job.skills || job.skills.length === 0) {
+        return false;
+      }
 
       return job.skills.some((skill) =>
         resumeText.includes(skill.toLowerCase())
       );
-
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: recommendedJobs.length,
       jobs: recommendedJobs,
     });
-
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };

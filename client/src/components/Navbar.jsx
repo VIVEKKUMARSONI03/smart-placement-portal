@@ -5,39 +5,44 @@ import { AuthContext } from "../context/AuthContext";
 import { CompanyAuthContext } from "../context/CompanyAuthContext";
 
 function Navbar() {
-
   const navigate = useNavigate();
 
-  const { student, setStudent } = useContext(AuthContext);
+  const { student, setStudent } =
+    useContext(AuthContext);
 
-  const companyContext = useContext(CompanyAuthContext);
+  const companyContext =
+    useContext(CompanyAuthContext);
 
   const company = companyContext?.company;
   const setCompany = companyContext?.setCompany;
 
   const studentToken = localStorage.getItem("token");
-  const companyToken = localStorage.getItem("companyToken");
-  const adminToken = localStorage.getItem("adminToken");
+  const companyToken =
+    localStorage.getItem("companyToken");
+  const adminToken =
+    localStorage.getItem("adminToken");
 
   // =========================
   // Logout
   // =========================
 
   const handleLogout = () => {
-
     localStorage.removeItem("token");
     localStorage.removeItem("companyToken");
     localStorage.removeItem("adminToken");
 
-    if (setStudent) setStudent(null);
-    if (setCompany) setCompany(null);
+    if (setStudent) {
+      setStudent(null);
+    }
+
+    if (setCompany) {
+      setCompany(null);
+    }
 
     navigate("/");
-
   };
 
   return (
-
     <nav className="bg-[#0F172A] border-b border-slate-700 shadow-lg">
 
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -58,7 +63,6 @@ function Navbar() {
           {/* ================= Student ================= */}
 
           {studentToken && (
-
             <>
 
               <Link
@@ -96,14 +100,21 @@ function Navbar() {
                 Applications
               </Link>
 
-            </>
+              {/* ================= Notifications ================= */}
 
+              <Link
+                to="/notifications"
+                className="text-white hover:text-yellow-400 transition"
+              >
+                🔔 Notifications
+              </Link>
+
+            </>
           )}
 
           {/* ================= Company ================= */}
 
           {companyToken && (
-
             <>
 
               <Link
@@ -142,13 +153,11 @@ function Navbar() {
               </Link>
 
             </>
-
           )}
 
           {/* ================= Admin ================= */}
 
           {adminToken && (
-
             <>
 
               <Link
@@ -187,51 +196,50 @@ function Navbar() {
               </Link>
 
             </>
-
           )}
 
           {/* ================= Login/Register ================= */}
 
-          {!studentToken && !companyToken && !adminToken && (
+          {!studentToken &&
+            !companyToken &&
+            !adminToken && (
+              <>
 
-            <>
+                <Link
+                  to="/login"
+                  className="px-4 py-2 rounded-lg border border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white transition"
+                >
+                  Student Login
+                </Link>
 
-              <Link
-                to="/login"
-                className="px-4 py-2 rounded-lg border border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white transition"
-              >
-                Student Login
-              </Link>
+                <Link
+                  to="/company-login"
+                  className="px-4 py-2 rounded-lg border border-green-500 text-green-400 hover:bg-green-500 hover:text-white transition"
+                >
+                  Company Login
+                </Link>
 
-              <Link
-                to="/company-login"
-                className="px-4 py-2 rounded-lg border border-green-500 text-green-400 hover:bg-green-500 hover:text-white transition"
-              >
-                Company Login
-              </Link>
+                <Link
+                  to="/admin-login"
+                  className="px-4 py-2 rounded-lg border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition"
+                >
+                  Admin Login
+                </Link>
 
-              <Link
-                to="/admin-login"
-                className="px-4 py-2 rounded-lg border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition"
-              >
-                Admin Login
-              </Link>
+              </>
+            )}
 
-            </>
+          {/* ================= Logout ================= */}
 
-          )}
-
-          {/* Logout */}
-
-          {(studentToken || companyToken || adminToken) && (
-
+          {(studentToken ||
+            companyToken ||
+            adminToken) && (
             <button
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition"
             >
               Logout
             </button>
-
           )}
 
         </div>
@@ -239,9 +247,7 @@ function Navbar() {
       </div>
 
     </nav>
-
   );
-
 }
 
 export default Navbar;

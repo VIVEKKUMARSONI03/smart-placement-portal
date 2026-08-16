@@ -48,31 +48,38 @@ export const registerStudent = async (req, res) => {
 // =====================================
 
 export const loginStudent = async (req, res) => {
+  console.log("Login request received", {
+    path: req.path,
+    email: req.body?.email,
+  });
 
   try {
-
     const { email, password } = req.body;
 
     const student = await Student.findOne({ email }).select("+password");
 
     if (!student) {
-
       return res.status(400).json({
         success: false,
         message: "Student not found",
       });
-
     }
 
     const isMatch = await bcrypt.compare(password, student.password);
 
     if (!isMatch) {
-
       return res.status(400).json({
         success: false,
         message: "Invalid credentials",
       });
+    }
 
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET missing during login");
+      return res.status(500).json({
+        success: false,
+        message: "Server configuration error: JWT_SECRET not set",
+      });
     }
 
     const token = jwt.sign(
@@ -82,7 +89,6 @@ export const loginStudent = async (req, res) => {
     );
 
     const studentData = student.toObject();
-
     delete studentData.password;
 
     res.status(200).json({
@@ -91,16 +97,13 @@ export const loginStudent = async (req, res) => {
       token,
       student: studentData,
     });
-
   } catch (error) {
-
+    console.error("LoginStudent error:", error);
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: error?.message || "Login failed due to server error",
     });
-
   }
-
 };
 
 // =====================================
