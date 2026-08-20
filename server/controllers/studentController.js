@@ -1,17 +1,129 @@
-import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import fs from "fs";
 import path from "path";
 
 import Student from "../models/Student.js";
 
+import cloudinary from "../config/cloudinary.js";
+
+// =====================================
+// Generate Token
+// =====================================
+
+const generateToken = (studentId) => {
+  return jwt.sign(
+    {
+      id: studentId,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "7d",
+    }
+  );
+};
+
+// =====================================
+// Upload Buffer To Cloudinary
+// =====================================
+
+const uploadBufferToCloudinary = (
+  buffer,
+  options
+) => {
+  return new Promise(
+    (resolve, reject) => {
+      const stream =
+        cloudinary.uploader.upload_stream(
+          options,
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+      stream.end(buffer);
+    }
+  );
+};
+
+// =====================================
+// Delete Local Profile Image
+// Backward Compatibility
+// =====================================
+
+const deleteLocalProfileImage = (
+  imagePath
+) => {
+  try {
+    if (
+      !imagePath ||
+      !imagePath.startsWith(
+        "/uploads/profile-images/"
+      )
+    ) {
+      return;
+    }
+
+    const fullPath = path.join(
+      process.cwd(),
+      imagePath.replace(/^\/+/, "")
+    );
+
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  } catch (error) {
+    console.error(
+      "Local Profile Image Delete Error:",
+      error
+    );
+  }
+};
+
+// =====================================
+// Delete Cloudinary Image
+// =====================================
+
+const deleteCloudinaryImage =
+  async (publicId) => {
+    if (!publicId) {
+      return;
+    }
+
+    try {
+      await cloudinary.uploader.destroy(
+        publicId,
+        {
+          resource_type: "image",
+          invalidate: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Cloudinary Image Delete Error:",
+        error
+      );
+    }
+  };
+
 // =====================================
 // Register Student
 // =====================================
 
-export const registerStudent = async (req, res) => {
+export const registerStudent = async (
+  req,
+  res
+) => {
   try {
-    const { name, email, password } = req.body;
+    const {
+      name,
+      email,
+      password,
+    } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -30,38 +142,52 @@ export const registerStudent = async (req, res) => {
     }
 
     const normalizedEmail =
-      email.trim().toLowerCase();
+      email.toLowerCase().trim();
 
-    const studentExists =
+    const existingStudent =
       await Student.findOne({
         email: normalizedEmail,
       });
 
-    if (studentExists) {
+    if (existingStudent) {
       return res.status(400).json({
         success: false,
-        message: "Student already exists",
+        message:
+          "Student already registered with this email",
       });
     }
 
     const hashedPassword =
-      await bcrypt.hash(password, 10);
+      await bcrypt.hash(
+        password,
+        10
+      );
 
-    const student = await Student.create({
-      name: name.trim(),
-      email: normalizedEmail,
-      password: hashedPassword,
-    });
+    const student =
+      await Student.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+      });
 
-    const studentData = student.toObject();
-
-    delete studentData.password;
+    const token =
+      generateToken(
+        student._id
+      );
 
     return res.status(201).json({
       success: true,
       message:
         "Student registered successfully",
-      student: studentData,
+      token,
+
+      student: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        profileImage:
+          student.profileImage,
+      },
     });
   } catch (error) {
     console.error(
@@ -71,7 +197,8 @@ export const registerStudent = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        "Unable to register student",
     });
   }
 };
@@ -80,9 +207,15 @@ export const registerStudent = async (req, res) => {
 // Login Student
 // =====================================
 
-export const loginStudent = async (req, res) => {
+export const loginStudent = async (
+  req,
+  res
+) => {
   try {
-    const { email, password } = req.body;
+    const {
+      email,
+      password,
+    } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -92,71 +225,65 @@ export const loginStudent = async (req, res) => {
       });
     }
 
-    const normalizedEmail =
-      email.trim().toLowerCase();
-
-    const student = await Student.findOne({
-      email: normalizedEmail,
-    }).select("+password");
+    const student =
+      await Student.findOne({
+        email:
+          email
+            .toLowerCase()
+            .trim(),
+      }).select("+password");
 
     if (!student) {
-      return res.status(400).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
-
-    const isMatch = await bcrypt.compare(
-      password,
-      student.password
-    );
-
-    if (!isMatch) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid credentials",
-      });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({
+      return res.status(401).json({
         success: false,
         message:
-          "Server configuration error",
+          "Invalid email or password",
       });
     }
 
-    const token = jwt.sign(
-      {
-        id: student._id,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
-    );
+    const passwordMatch =
+      await bcrypt.compare(
+        password,
+        student.password
+      );
 
-    const studentData =
-      student.toObject();
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid email or password",
+      });
+    }
 
-    delete studentData.password;
+    const token =
+      generateToken(
+        student._id
+      );
 
     return res.status(200).json({
       success: true,
-      message: "Login successful",
+      message:
+        "Student login successful",
       token,
-      student: studentData,
+
+      student: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        profileImage:
+          student.profileImage,
+      },
     });
   } catch (error) {
     console.error(
-      "Login Student Error:",
+      "Student Login Error:",
       error
     );
 
     return res.status(500).json({
       success: false,
       message:
-        error.message || "Login failed",
+        "Unable to login student",
     });
   }
 };
@@ -165,15 +292,14 @@ export const loginStudent = async (req, res) => {
 // Get Profile
 // =====================================
 
-export const getProfile = async (req, res) => {
+export const getProfile = async (
+  req,
+  res
+) => {
   try {
-    const studentId =
-      req.student?._id ||
-      req.student?.id;
-
     const student =
       await Student.findById(
-        studentId
+        req.student._id
       ).select("-password");
 
     if (!student) {
@@ -189,13 +315,14 @@ export const getProfile = async (req, res) => {
     });
   } catch (error) {
     console.error(
-      "Get Profile Error:",
+      "Get Student Profile Error:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        "Unable to load student profile",
     });
   }
 };
@@ -209,6 +336,18 @@ export const updateProfile = async (
   res
 ) => {
   try {
+    const student =
+      await Student.findById(
+        req.student._id
+      );
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+      });
+    }
+
     const {
       name,
       phone,
@@ -221,341 +360,114 @@ export const updateProfile = async (
       bio,
     } = req.body;
 
-    const studentId =
-      req.student?._id ||
-      req.student?.id;
-
-    const student =
-      await Student.findById(studentId);
-
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
-
-    if (!name || !String(name).trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Name is required",
-      });
-    }
-
-    // =====================================
-    // CGPA
-    // =====================================
-
-    const parsedCgpa =
-      cgpa === "" ||
-      cgpa === null ||
-      cgpa === undefined
-        ? 0
-        : Number(cgpa);
-
     if (
-      Number.isNaN(parsedCgpa) ||
-      parsedCgpa < 0 ||
-      parsedCgpa > 10
+      name !== undefined &&
+      !String(name).trim()
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "CGPA must be between 0 and 10",
+          "Name cannot be empty",
       });
     }
 
-    // =====================================
-    // Skills
-    // =====================================
-
-    let processedSkills = [];
-
-    if (Array.isArray(skills)) {
-      processedSkills = skills
-        .map((skill) =>
-          String(skill).trim()
-        )
-        .filter(Boolean);
-    } else if (
-      typeof skills === "string"
-    ) {
-      processedSkills = skills
-        .split(",")
-        .map((skill) => skill.trim())
-        .filter(Boolean);
+    if (name !== undefined) {
+      student.name =
+        String(name).trim();
     }
 
-    // Remove duplicates
-    processedSkills =
-      processedSkills.filter(
-        (skill, index, array) =>
-          index ===
-          array.findIndex(
-            (item) =>
-              item.toLowerCase() ===
-              skill.toLowerCase()
-          )
-      );
+    if (phone !== undefined) {
+      student.phone =
+        String(phone).trim();
+    }
 
-    // =====================================
-    // Update Fields
-    // =====================================
+    if (college !== undefined) {
+      student.college =
+        String(college).trim();
+    }
 
-    student.name =
-      String(name).trim();
+    if (branch !== undefined) {
+      student.branch =
+        String(branch).trim();
+    }
 
-    student.phone =
-      typeof phone === "string"
-        ? phone.trim()
-        : "";
+    if (
+      cgpa !== undefined &&
+      cgpa !== ""
+    ) {
+      const cgpaNumber =
+        Number(cgpa);
 
-    student.college =
-      typeof college === "string"
-        ? college.trim()
-        : "";
+      if (
+        Number.isNaN(
+          cgpaNumber
+        ) ||
+        cgpaNumber < 0 ||
+        cgpaNumber > 10
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "CGPA must be between 0 and 10",
+        });
+      }
 
-    student.branch =
-      typeof branch === "string"
-        ? branch.trim()
-        : "";
+      student.cgpa =
+        cgpaNumber;
+    }
 
-    student.cgpa = parsedCgpa;
+    if (skills !== undefined) {
+      if (Array.isArray(skills)) {
+        student.skills =
+          skills
+            .map((skill) =>
+              String(skill).trim()
+            )
+            .filter(Boolean);
+      } else {
+        student.skills =
+          String(skills)
+            .split(",")
+            .map((skill) =>
+              skill.trim()
+            )
+            .filter(Boolean);
+      }
+    }
 
-    student.skills =
-      processedSkills;
+    if (github !== undefined) {
+      student.github =
+        String(github).trim();
+    }
 
-    student.github =
-      typeof github === "string"
-        ? github.trim()
-        : "";
+    if (linkedin !== undefined) {
+      student.linkedin =
+        String(linkedin).trim();
+    }
 
-    student.linkedin =
-      typeof linkedin === "string"
-        ? linkedin.trim()
-        : "";
-
-    student.bio =
-      typeof bio === "string"
-        ? bio.trim()
-        : "";
+    if (bio !== undefined) {
+      student.bio =
+        String(bio).trim();
+    }
 
     await student.save();
-
-    const studentData =
-      student.toObject();
-
-    delete studentData.password;
 
     return res.status(200).json({
       success: true,
       message:
         "Profile updated successfully",
-      student: studentData,
+      student,
     });
   } catch (error) {
     console.error(
-      "Update Profile Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-// =====================================
-// Upload Profile Image
-// =====================================
-
-export const uploadProfileImage =
-  async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Please select a profile image",
-        });
-      }
-
-      const studentId =
-        req.student?._id ||
-        req.student?.id;
-
-      const student =
-        await Student.findById(
-          studentId
-        );
-
-      if (!student) {
-        // Remove newly uploaded file
-        if (
-          req.file?.path &&
-          fs.existsSync(req.file.path)
-        ) {
-          fs.unlinkSync(req.file.path);
-        }
-
-        return res.status(404).json({
-          success: false,
-          message: "Student not found",
-        });
-      }
-
-
-
-      // =====================================
-      // Delete Old Local Profile Image
-      // =====================================
-
-      if (
-        student.profileImage &&
-        student.profileImage.startsWith(
-          "/uploads/profile-images/"
-        )
-      ) {
-        try {
-          const oldImagePath =
-            path.join(
-              process.cwd(),
-              student.profileImage.replace(
-                /^\//,
-                ""
-              )
-            );
-
-          if (
-            fs.existsSync(oldImagePath)
-          ) {
-            fs.unlinkSync(oldImagePath);
-          }
-        } catch (deleteError) {
-          console.error(
-            "Old Profile Image Delete Error:",
-            deleteError
-          );
-        }
-      }
-
-      // =====================================
-      // Save New Image URL
-      // =====================================
-
-      student.profileImage =
-        `/uploads/profile-images/${req.file.filename}`;
-
-      await student.save();
-
-      return res.status(200).json({
-        success: true,
-
-        message:
-          "Profile picture updated successfully",
-
-        profileImage:
-          student.profileImage,
-      });
-    } catch (error) {
-      console.error(
-        "Upload Profile Image Error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          error.message ||
-          "Unable to upload profile picture",
-      });
-    }
-  };
-
-
-  // =====================================
-// Remove Profile Image
-// =====================================
-
-export const removeProfileImage = async (req, res) => {
-  try {
-    const studentId =
-      req.student?._id ||
-      req.student?.id;
-
-    const student =
-      await Student.findById(studentId);
-
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
-
-    // No image already
-    if (!student.profileImage) {
-      return res.status(400).json({
-        success: false,
-        message: "No profile picture to remove",
-      });
-    }
-
-    // =====================================
-    // Delete Local Image File
-    // =====================================
-
-    if (
-      student.profileImage.startsWith(
-        "/uploads/profile-images/"
-      )
-    ) {
-      try {
-        const imagePath = path.join(
-          process.cwd(),
-          student.profileImage.replace(
-            /^\//,
-            ""
-          )
-        );
-
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
-        }
-      } catch (deleteError) {
-        console.error(
-          "Profile Image Delete Error:",
-          deleteError
-        );
-      }
-    }
-
-    // =====================================
-    // Remove From Database
-    // =====================================
-
-    student.profileImage = "";
-
-    await student.save();
-
-    return res.status(200).json({
-      success: true,
-      message:
-        "Profile picture removed successfully",
-      profileImage: "",
-    });
-  } catch (error) {
-    console.error(
-      "Remove Profile Image Error:",
+      "Update Student Profile Error:",
       error
     );
 
     return res.status(500).json({
       success: false,
       message:
-        error.message ||
-        "Unable to remove profile picture",
+        "Unable to update profile",
     });
   }
 };
@@ -569,31 +481,10 @@ export const updateResume = async (
   res
 ) => {
   try {
-    const {
-      resume,
-      resumePublicId,
-      resumeText,
-      resumeScore,
-    } = req.body;
-
-    const studentId =
-      req.student?._id ||
-      req.student?.id;
-
     const student =
-      await Student.findByIdAndUpdate(
-        studentId,
-        {
-          resume,
-          resumePublicId,
-          resumeText,
-          resumeScore,
-        },
-        {
-          new: true,
-          runValidators: true,
-        }
-      ).select("-password");
+      await Student.findById(
+        req.student._id
+      );
 
     if (!student) {
       return res.status(404).json({
@@ -602,10 +493,44 @@ export const updateResume = async (
       });
     }
 
+    const {
+      resume,
+      resumePublicId,
+      resumeText,
+      resumeScore,
+    } = req.body;
+
+    if (resume !== undefined) {
+      student.resume = resume;
+    }
+
+    if (
+      resumePublicId !== undefined
+    ) {
+      student.resumePublicId =
+        resumePublicId;
+    }
+
+    if (
+      resumeText !== undefined
+    ) {
+      student.resumeText =
+        resumeText;
+    }
+
+    if (
+      resumeScore !== undefined
+    ) {
+      student.resumeScore =
+        Number(resumeScore) || 0;
+    }
+
+    await student.save();
+
     return res.status(200).json({
       success: true,
       message:
-        "Resume updated successfully",
+        "Resume information updated successfully",
       student,
     });
   } catch (error) {
@@ -616,123 +541,280 @@ export const updateResume = async (
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        "Unable to update resume",
     });
   }
 };
+
+// =====================================
+// Upload Profile Image
+// =====================================
+
+export const uploadProfileImage =
+  async (req, res) => {
+    let newPublicId = "";
+
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Please select a profile image",
+        });
+      }
+
+      const student =
+        await Student.findById(
+          req.student._id
+        );
+
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Student not found",
+        });
+      }
+
+      const oldImage =
+        student.profileImage;
+
+      const oldPublicId =
+        student.profileImagePublicId;
+
+      // =====================================
+      // Upload To Cloudinary
+      // =====================================
+
+      const uploadResult =
+        await uploadBufferToCloudinary(
+          req.file.buffer,
+          {
+            resource_type: "image",
+
+            folder:
+              "smart-placement-portal/profile-images",
+
+            public_id:
+              `student-${student._id}-${Date.now()}`,
+          }
+        );
+
+      newPublicId =
+        uploadResult.public_id;
+
+      student.profileImage =
+        uploadResult.secure_url;
+
+      student.profileImagePublicId =
+        uploadResult.public_id;
+
+      await student.save();
+
+      // =====================================
+      // Delete Old Image
+      // =====================================
+
+      if (oldPublicId) {
+        await deleteCloudinaryImage(
+          oldPublicId
+        );
+      } else {
+        deleteLocalProfileImage(
+          oldImage
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Profile image updated successfully",
+        profileImage:
+          student.profileImage,
+      });
+    } catch (error) {
+      console.error(
+        "Upload Profile Image Error:",
+        error
+      );
+
+      if (newPublicId) {
+        await deleteCloudinaryImage(
+          newPublicId
+        );
+      }
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message ||
+          "Unable to upload profile image",
+      });
+    }
+  };
+
+// =====================================
+// Remove Profile Image
+// =====================================
+
+export const removeProfileImage =
+  async (req, res) => {
+    try {
+      const student =
+        await Student.findById(
+          req.student._id
+        );
+
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Student not found",
+        });
+      }
+
+      if (!student.profileImage) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Profile image is not uploaded",
+        });
+      }
+
+      const oldImage =
+        student.profileImage;
+
+      const oldPublicId =
+        student.profileImagePublicId;
+
+      student.profileImage = "";
+      student.profileImagePublicId =
+        "";
+
+      await student.save();
+
+      if (oldPublicId) {
+        await deleteCloudinaryImage(
+          oldPublicId
+        );
+      } else {
+        deleteLocalProfileImage(
+          oldImage
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Profile image removed successfully",
+      });
+    } catch (error) {
+      console.error(
+        "Remove Profile Image Error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to remove profile image",
+      });
+    }
+  };
 
 // =====================================
 // Change Password
 // =====================================
 
-export const changePassword = async (
-  req,
-  res
-) => {
-  try {
-    const {
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    } = req.body;
-
-    if (
-      !currentPassword ||
-      !newPassword ||
-      !confirmPassword
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "All password fields are required",
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "New password must be at least 6 characters",
-      });
-    }
-
-    if (
-      newPassword !==
-      confirmPassword
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "New password and confirm password do not match",
-      });
-    }
-
-    if (
-      currentPassword ===
-      newPassword
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "New password must be different from current password",
-      });
-    }
-
-    const studentId =
-      req.student?._id ||
-      req.student?.id;
-
-    const student =
-      await Student.findById(
-        studentId
-      ).select("+password");
-
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Student not found",
-      });
-    }
-
-    const isMatch =
-      await bcrypt.compare(
+export const changePassword =
+  async (req, res) => {
+    try {
+      const {
         currentPassword,
-        student.password
+        newPassword,
+      } = req.body;
+
+      if (
+        !currentPassword ||
+        !newPassword
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Current password and new password are required",
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "New password must be at least 6 characters",
+        });
+      }
+
+      if (
+        currentPassword ===
+        newPassword
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "New password must be different from current password",
+        });
+      }
+
+      const student =
+        await Student.findById(
+          req.student._id
+        ).select("+password");
+
+      if (!student) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Student not found",
+        });
+      }
+
+      const passwordMatch =
+        await bcrypt.compare(
+          currentPassword,
+          student.password
+        );
+
+      if (!passwordMatch) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Current password is incorrect",
+        });
+      }
+
+      student.password =
+        await bcrypt.hash(
+          newPassword,
+          10
+        );
+
+      await student.save();
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Password changed successfully",
+      });
+    } catch (error) {
+      console.error(
+        "Change Password Error:",
+        error
       );
 
-    if (!isMatch) {
-      return res.status(400).json({
+      return res.status(500).json({
         success: false,
         message:
-          "Current password is incorrect",
+          "Unable to change password",
       });
     }
-
-    const hashedPassword =
-      await bcrypt.hash(
-        newPassword,
-        10
-      );
-
-    student.password =
-      hashedPassword;
-
-    await student.save();
-
-    return res.status(200).json({
-      success: true,
-      message:
-        "Password changed successfully",
-    });
-  } catch (error) {
-    console.error(
-      "Change Password Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+  };

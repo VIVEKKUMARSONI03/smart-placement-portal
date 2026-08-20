@@ -1,7 +1,13 @@
 import fs from "fs";
 import path from "path";
+
 import Student from "../models/Student.js";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+
+import cloudinary from "../config/cloudinary.js";
+
+import {
+  getDocument,
+} from "pdfjs-dist/legacy/build/pdf.mjs";
 
 // ===================================
 // Required Skills
@@ -26,17 +32,21 @@ const requiredSkills = [
 
 const learningResources = {
   react: {
-    course: "React Official Documentation",
+    course:
+      "React Official Documentation",
     link: "https://react.dev",
   },
 
   node: {
-    course: "Node.js Official Documentation",
-    link: "https://nodejs.org/en/docs",
+    course:
+      "Node.js Official Documentation",
+    link:
+      "https://nodejs.org/en/docs",
   },
 
   express: {
-    course: "Express.js Documentation",
+    course:
+      "Express.js Documentation",
     link: "https://expressjs.com",
   },
 
@@ -52,16 +62,19 @@ const learningResources = {
 
   html: {
     course: "MDN HTML",
-    link: "https://developer.mozilla.org/en-US/docs/Web/HTML",
+    link:
+      "https://developer.mozilla.org/en-US/docs/Web/HTML",
   },
 
   css: {
     course: "MDN CSS",
-    link: "https://developer.mozilla.org/en-US/docs/Web/CSS",
+    link:
+      "https://developer.mozilla.org/en-US/docs/Web/CSS",
   },
 
   git: {
-    course: "Git SCM Documentation",
+    course:
+      "Git SCM Documentation",
     link: "https://git-scm.com/docs",
   },
 
@@ -71,19 +84,49 @@ const learningResources = {
   },
 
   docker: {
-    course: "Docker Getting Started",
-    link: "https://docs.docker.com/get-started",
+    course:
+      "Docker Getting Started",
+    link:
+      "https://docs.docker.com/get-started",
   },
 };
 
 // ===================================
-// Read PDF Text
+// Upload Buffer To Cloudinary
 // ===================================
 
-const extractPdfText = async (filePath) => {
-  const data = new Uint8Array(
-    fs.readFileSync(filePath)
+const uploadBufferToCloudinary = (
+  buffer,
+  options
+) => {
+  return new Promise(
+    (resolve, reject) => {
+      const stream =
+        cloudinary.uploader.upload_stream(
+          options,
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+      stream.end(buffer);
+    }
   );
+};
+
+// ===================================
+// Extract PDF Text From Buffer
+// ===================================
+
+const extractPdfText = async (
+  buffer
+) => {
+  const data =
+    new Uint8Array(buffer);
 
   const pdf = await getDocument({
     data,
@@ -102,9 +145,10 @@ const extractPdfText = async (filePath) => {
     const content =
       await currentPage.getTextContent();
 
-    const strings = content.items.map(
-      (item) => item.str
-    );
+    const strings =
+      content.items.map(
+        (item) => item.str
+      );
 
     text += `${strings.join(" ")} `;
   }
@@ -113,10 +157,12 @@ const extractPdfText = async (filePath) => {
 };
 
 // ===================================
-// Analyze Resume Text
+// Analyze Resume
 // ===================================
 
-const analyzeResumeText = (text = "") => {
+const analyzeResumeText = (
+  text = ""
+) => {
   const resumeText =
     text.toLowerCase();
 
@@ -174,10 +220,11 @@ const analyzeResumeText = (text = "") => {
 };
 
 // ===================================
-// Delete Local Resume File
+// Delete Old Local Resume
+// Backward Compatibility
 // ===================================
 
-const deleteLocalResumeFile = (
+const deleteLocalResume = (
   resumePath
 ) => {
   try {
@@ -190,30 +237,58 @@ const deleteLocalResumeFile = (
       return;
     }
 
-    const filePath = path.join(
+    const fullPath = path.join(
       process.cwd(),
       resumePath.replace(/^\/+/, "")
     );
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
     }
   } catch (error) {
     console.error(
-      "Delete Resume File Error:",
+      "Local Resume Delete Error:",
       error
     );
   }
 };
 
 // ===================================
-// Upload / Replace Resume + Analyze
+// Delete Cloudinary Resume
+// ===================================
+
+const deleteCloudinaryResume =
+  async (publicId) => {
+    if (!publicId) {
+      return;
+    }
+
+    try {
+      await cloudinary.uploader.destroy(
+        publicId,
+        {
+          resource_type: "raw",
+          invalidate: true,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Cloudinary Resume Delete Error:",
+        error
+      );
+    }
+  };
+
+// ===================================
+// Upload / Replace Resume
 // ===================================
 
 export const uploadResume = async (
   req,
   res
 ) => {
+  let newCloudinaryPublicId = "";
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -229,13 +304,6 @@ export const uploadResume = async (
       );
 
     if (!student) {
-      if (
-        req.file?.path &&
-        fs.existsSync(req.file.path)
-      ) {
-        fs.unlinkSync(req.file.path);
-      }
-
       return res.status(404).json({
         success: false,
         message: "Student not found",
@@ -243,7 +311,7 @@ export const uploadResume = async (
     }
 
     // ===================================
-    // Extract Resume Text
+    // Extract PDF Text
     // ===================================
 
     let rawText = "";
@@ -251,18 +319,11 @@ export const uploadResume = async (
     try {
       rawText =
         await extractPdfText(
-          req.file.path
+          req.file.buffer
         );
     } catch (error) {
-      if (
-        req.file?.path &&
-        fs.existsSync(req.file.path)
-      ) {
-        fs.unlinkSync(req.file.path);
-      }
-
       console.error(
-        "PDF Text Extraction Error:",
+        "PDF Extraction Error:",
         error
       );
 
@@ -274,23 +335,12 @@ export const uploadResume = async (
     }
 
     if (!rawText.trim()) {
-      if (
-        req.file?.path &&
-        fs.existsSync(req.file.path)
-      ) {
-        fs.unlinkSync(req.file.path);
-      }
-
       return res.status(400).json({
         success: false,
         message:
           "No readable text found in the PDF resume.",
       });
     }
-
-    // ===================================
-    // Analyze Resume
-    // ===================================
 
     const resumeText =
       rawText.toLowerCase();
@@ -301,21 +351,45 @@ export const uploadResume = async (
       );
 
     // ===================================
-    // Keep Old Resume Path
+    // Save Old Resume Information
     // ===================================
 
     const oldResume =
       student.resume;
 
+    const oldResumePublicId =
+      student.resumePublicId;
+
     // ===================================
-    // Save New Resume
+    // Upload New Resume To Cloudinary
     // ===================================
 
-    const newResumePath =
-      `/uploads/resumes/${req.file.filename}`;
+    const uploadResult =
+      await uploadBufferToCloudinary(
+        req.file.buffer,
+        {
+          resource_type: "raw",
+
+          folder:
+            "smart-placement-portal/resumes",
+
+          public_id:
+            `resume-${student._id}-${Date.now()}.pdf`,
+        }
+      );
+
+    newCloudinaryPublicId =
+      uploadResult.public_id;
+
+    // ===================================
+    // Save Cloudinary Data
+    // ===================================
 
     student.resume =
-      newResumePath;
+      uploadResult.secure_url;
+
+    student.resumePublicId =
+      uploadResult.public_id;
 
     student.resumeText =
       resumeText;
@@ -323,19 +397,18 @@ export const uploadResume = async (
     student.resumeScore =
       analysis.score;
 
-    student.resumePublicId = "";
-
     await student.save();
 
     // ===================================
-    // Delete Old Resume After New Save
+    // Delete Previous Resume
     // ===================================
 
-    if (
-      oldResume &&
-      oldResume !== newResumePath
-    ) {
-      deleteLocalResumeFile(
+    if (oldResumePublicId) {
+      await deleteCloudinaryResume(
+        oldResumePublicId
+      );
+    } else {
+      deleteLocalResume(
         oldResume
       );
     }
@@ -374,20 +447,12 @@ export const uploadResume = async (
       error
     );
 
-    // Delete newly uploaded file if
-    // an unexpected error happens
-    if (
-      req.file?.path &&
-      fs.existsSync(req.file.path)
-    ) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (fileError) {
-        console.error(
-          "Resume Cleanup Error:",
-          fileError
-        );
-      }
+    // Database save fail hone par
+    // newly uploaded Cloudinary file cleanup
+    if (newCloudinaryPublicId) {
+      await deleteCloudinaryResume(
+        newCloudinaryPublicId
+      );
     }
 
     return res.status(500).json({
@@ -400,7 +465,7 @@ export const uploadResume = async (
 };
 
 // ===================================
-// Get Current Resume
+// Get Resume
 // ===================================
 
 export const getResume = async (
@@ -420,7 +485,6 @@ export const getResume = async (
       });
     }
 
-    // No Resume Uploaded
     if (!student.resume) {
       return res.status(200).json({
         success: true,
@@ -507,24 +571,33 @@ export const deleteResume = async (
     const oldResume =
       student.resume;
 
+    const oldResumePublicId =
+      student.resumePublicId;
+
     // ===================================
-    // Clear Resume From Database
+    // Clear Database
     // ===================================
 
     student.resume = "";
+    student.resumePublicId = "";
     student.resumeText = "";
     student.resumeScore = 0;
-    student.resumePublicId = "";
 
     await student.save();
 
     // ===================================
-    // Delete Resume File
+    // Delete File
     // ===================================
 
-    deleteLocalResumeFile(
-      oldResume
-    );
+    if (oldResumePublicId) {
+      await deleteCloudinaryResume(
+        oldResumePublicId
+      );
+    } else {
+      deleteLocalResume(
+        oldResume
+      );
+    }
 
     return res.status(200).json({
       success: true,

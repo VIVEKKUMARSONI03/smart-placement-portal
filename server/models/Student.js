@@ -1,102 +1,113 @@
 import mongoose from "mongoose";
 
-const studentSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-
-    password: {
-      type: String,
-      required: true,
-      select: false,
-    },
-
-    phone: {
-      type: String,
-      default: "",
-    },
-
-    college: {
-      type: String,
-      default: "",
-    },
-
-    branch: {
-      type: String,
-      default: "",
-    },
-
-    cgpa: {
-      type: Number,
-      default: 0,
-    },
-
-    skills: [
-      {
+const studentSchema =
+  new mongoose.Schema(
+    {
+      name: {
         type: String,
+        required: true,
+        trim: true,
       },
-    ],
 
-    github: {
-      type: String,
-      default: "",
-    },
+      email: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
+      },
 
-    linkedin: {
-      type: String,
-      default: "",
-    },
+      password: {
+        type: String,
+        required: true,
+        select: false,
+      },
 
-    profileImage: {
-      type: String,
-      default: "",
-    },
+      phone: {
+        type: String,
+        default: "",
+      },
 
-    bio: {
-      type: String,
-      default: "",
-    },
+      college: {
+        type: String,
+        default: "",
+      },
 
-    // Resume URL
-    resume: {
-      type: String,
-      default: "",
-    },
+      branch: {
+        type: String,
+        default: "",
+      },
 
-    // Cloudinary Public ID
-    resumePublicId: {
-      type: String,
-      default: "",
-    },
+      cgpa: {
+        type: Number,
+        default: 0,
+      },
 
-    // Resume Extracted Text
-    resumeText: {
-      type: String,
-      default: "",
-    },
+      skills: [
+        {
+          type: String,
+        },
+      ],
 
-    // AI Resume Score
-    resumeScore: {
-      type: Number,
-      default: 0,
+      github: {
+        type: String,
+        default: "",
+      },
+
+      linkedin: {
+        type: String,
+        default: "",
+      },
+
+      // =====================================
+      // Profile Image
+      // =====================================
+
+      profileImage: {
+        type: String,
+        default: "",
+      },
+
+      profileImagePublicId: {
+        type: String,
+        default: "",
+      },
+
+      bio: {
+        type: String,
+        default: "",
+      },
+
+      // =====================================
+      // Resume
+      // =====================================
+
+      resume: {
+        type: String,
+        default: "",
+      },
+
+      resumePublicId: {
+        type: String,
+        default: "",
+      },
+
+      resumeText: {
+        type: String,
+        default: "",
+      },
+
+      resumeScore: {
+        type: Number,
+        default: 0,
+      },
     },
-  },
-  {
-    timestamps: true,
-  }
+    {
+      timestamps: true,
+    }
+  );
+
+export default mongoose.model(
+  "Student",
+  studentSchema
 );
-
-const Student = mongoose.model("Student", studentSchema);
-
-export default Student;

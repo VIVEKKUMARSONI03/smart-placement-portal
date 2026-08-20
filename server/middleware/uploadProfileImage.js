@@ -1,41 +1,10 @@
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 
 // =====================================
-// Profile Image Upload Folder
+// Memory Storage
 // =====================================
 
-const uploadPath = "uploads/profile-images";
-
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath, {
-    recursive: true,
-  });
-}
-
-// =====================================
-// Storage
-// =====================================
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadPath);
-  },
-
-  filename: (req, file, cb) => {
-    const uniqueName =
-      Date.now() +
-      "-" +
-      Math.round(Math.random() * 1e9);
-
-    cb(
-      null,
-      uniqueName +
-        path.extname(file.originalname)
-    );
-  },
-});
+const storage = multer.memoryStorage();
 
 // =====================================
 // Image Filter
@@ -62,7 +31,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 // =====================================
-// Multer
+// Profile Image Upload
 // =====================================
 
 const uploadProfileImage = multer({
