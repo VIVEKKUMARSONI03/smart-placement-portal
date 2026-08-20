@@ -2,7 +2,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import api from "../services/api";
 
-function Settings() {
+function CompanySettings() {
   const [formData, setFormData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -18,8 +18,8 @@ function Settings() {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((previous) => ({
+      ...previous,
       [name]: value,
     }));
   };
@@ -42,7 +42,7 @@ function Settings() {
       !newPassword ||
       !confirmPassword
     ) {
-      toast.error("Please fill all password fields");
+      toast.error("Please fill all fields");
       return;
     }
 
@@ -71,15 +71,18 @@ function Settings() {
       setLoading(true);
 
       const token =
-        localStorage.getItem("token") ||
-        localStorage.getItem("studentToken");
+        localStorage.getItem("companyToken");
+
+      if (!token) {
+        toast.error("Company login required");
+        return;
+      }
 
       const res = await api.put(
-        "/students/change-password",
+        "/company/change-password",
         {
           currentPassword,
           newPassword,
-          confirmPassword,
         },
         {
           headers: {
@@ -93,7 +96,6 @@ function Settings() {
           "Password changed successfully"
       );
 
-      // Clear form after successful change
       setFormData({
         currentPassword: "",
         newPassword: "",
@@ -101,7 +103,7 @@ function Settings() {
       });
     } catch (error) {
       console.error(
-        "Change Password Error:",
+        "Company Change Password Error:",
         error
       );
 
@@ -114,52 +116,42 @@ function Settings() {
     }
   };
 
-  // =====================================
-  // UI
-  // =====================================
-
   return (
-    <div className="min-h-screen bg-slate-900 p-6 md:p-10">
-
-      <div className="max-w-2xl mx-auto">
-
+    <div className="min-h-screen bg-slate-900 p-6 md:p-8">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
 
         <div className="mb-8">
-
           <h1 className="text-4xl font-bold text-white">
-            ⚙️ Settings
+            ⚙️ Company Settings
           </h1>
 
-          <p className="text-gray-400 mt-2">
-            Manage your account security and password.
+          <p className="text-slate-400 mt-2">
+            Manage your company account settings
+            and password.
           </p>
-
         </div>
 
         {/* Change Password Card */}
 
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-lg">
-
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8">
           <h2 className="text-2xl font-bold text-white">
             🔐 Change Password
           </h2>
 
-          <p className="text-gray-400 mt-2 mb-7">
-            Enter your current password and choose a
-            new password.
+          <p className="text-slate-400 mt-2">
+            Enter your current password and choose
+            a new password.
           </p>
 
           <form
             onSubmit={handleSubmit}
-            className="space-y-6"
+            className="mt-8 space-y-6"
           >
-
             {/* Current Password */}
 
             <div>
-
-              <label className="block text-gray-300 mb-2">
+              <label className="block text-slate-300 mb-2">
                 Current Password
               </label>
 
@@ -170,16 +162,14 @@ function Settings() {
                 onChange={handleChange}
                 placeholder="Enter current password"
                 autoComplete="current-password"
-                className="w-full bg-slate-900 border border-slate-600 text-white px-4 py-3 rounded-lg outline-none focus:border-purple-500"
+                className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white outline-none focus:border-purple-500"
               />
-
             </div>
 
             {/* New Password */}
 
             <div>
-
-              <label className="block text-gray-300 mb-2">
+              <label className="block text-slate-300 mb-2">
                 New Password
               </label>
 
@@ -190,21 +180,19 @@ function Settings() {
                 onChange={handleChange}
                 placeholder="Enter new password"
                 autoComplete="new-password"
-                className="w-full bg-slate-900 border border-slate-600 text-white px-4 py-3 rounded-lg outline-none focus:border-purple-500"
+                className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white outline-none focus:border-purple-500"
               />
 
-              <p className="text-gray-500 text-sm mt-2">
+              <p className="text-slate-500 text-sm mt-2">
                 Password must contain at least 6
                 characters.
               </p>
-
             </div>
 
             {/* Confirm Password */}
 
             <div>
-
-              <label className="block text-gray-300 mb-2">
+              <label className="block text-slate-300 mb-2">
                 Confirm New Password
               </label>
 
@@ -215,9 +203,8 @@ function Settings() {
                 onChange={handleChange}
                 placeholder="Confirm new password"
                 autoComplete="new-password"
-                className="w-full bg-slate-900 border border-slate-600 text-white px-4 py-3 rounded-lg outline-none focus:border-purple-500"
+                className="w-full p-3 rounded-lg bg-slate-700 border border-slate-600 text-white outline-none focus:border-purple-500"
               />
-
             </div>
 
             {/* Submit */}
@@ -225,36 +212,17 @@ function Settings() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition"
+              className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg font-semibold"
             >
               {loading
                 ? "Changing Password..."
                 : "Change Password"}
             </button>
-
           </form>
-
         </div>
-
-        {/* Security Information */}
-
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 mt-6">
-
-          <h3 className="text-white text-xl font-semibold">
-            🛡️ Account Security
-          </h3>
-
-          <p className="text-gray-400 mt-2">
-            Use a strong password that you do not use
-            on other websites.
-          </p>
-
-        </div>
-
       </div>
-
     </div>
   );
 }
 
-export default Settings;
+export default CompanySettings;

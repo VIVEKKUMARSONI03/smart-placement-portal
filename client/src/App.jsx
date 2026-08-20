@@ -8,6 +8,7 @@ import CompanyRegister from "./pages/CompanyRegister";
 import CompanyLogin from "./pages/CompanyLogin";
 import CompanyDashboard from "./pages/CompanyDashboard";
 import CompanyProfile from "./pages/CompanyProfile";
+import CompanySettings from "./pages/CompanySettings";
 import CreateJob from "./pages/CreateJob";
 import MyJobs from "./pages/MyJobs";
 import Applicants from "./pages/Applicants";
@@ -30,6 +31,7 @@ import AdminStudents from "./pages/AdminStudents";
 import AdminCompanies from "./pages/AdminCompanies";
 import AdminJobs from "./pages/AdminJobs";
 import AdminApplications from "./pages/AdminApplications";
+import Analytics from "./pages/Analytics";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import CompanyProtectedRoute from "./components/CompanyProtectedRoute";
@@ -43,21 +45,50 @@ function App() {
 
       {/* ================= HOME ================= */}
 
-      <Route path="/" element={<Home />} />
+      <Route
+        path="/"
+        element={<Home />}
+      />
 
       {/* ================= STUDENT AUTH ================= */}
 
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route
+        path="/login"
+        element={<Login />}
+      />
+
+      <Route
+        path="/register"
+        element={<Register />}
+      />
 
       {/* ================= COMPANY AUTH ================= */}
 
-      <Route path="/company-register" element={<CompanyRegister />} />
-      <Route path="/company-login" element={<CompanyLogin />} />
+      <Route
+        path="/company-register"
+        element={<CompanyRegister />}
+      />
+
+      <Route
+        path="/company-login"
+        element={<CompanyLogin />}
+      />
 
       {/* ================= ADMIN AUTH ================= */}
 
-      <Route path="/admin-login" element={<AdminLogin />} />
+      <Route
+        path="/admin-login"
+        element={<AdminLogin />}
+      />
+
+      <Route
+        path="/admin/analytics"
+        element={
+          <AdminProtectedRoute>
+            <Analytics />
+          </AdminProtectedRoute>
+        }
+      />
 
       {/* ================= STUDENT ================= */}
 
@@ -190,6 +221,15 @@ function App() {
       />
 
       <Route
+        path="/company-settings"
+        element={
+          <CompanyProtectedRoute>
+            <CompanySettings />
+          </CompanyProtectedRoute>
+        }
+      />
+
+      <Route
         path="/applicants"
         element={
           <CompanyProtectedRoute>
@@ -247,7 +287,10 @@ function App() {
 
       {/* ================= 404 ================= */}
 
-      <Route path="*" element={<NotFound />} />
+      <Route
+        path="*"
+        element={<NotFound />}
+      />
 
     </Routes>
   );

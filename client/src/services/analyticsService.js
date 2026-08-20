@@ -1,9 +1,21 @@
 import api from "./api";
 
-export const getAnalytics = async () => {
+// =====================================
+// Get Admin Analytics
+// =====================================
 
-  const res = await api.get("/analytics");
+export const getAnalytics = async () => {
+  const token = localStorage.getItem("adminToken");
+
+  if (!token) {
+    throw new Error("Admin token not found");
+  }
+
+  const res = await api.get("/analytics", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   return res.data;
-
 };

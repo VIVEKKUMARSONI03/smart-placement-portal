@@ -10,6 +10,21 @@ export const applyJob = async (req, res) => {
   try {
     const { jobId } = req.body;
 
+    // ===================================
+    // Validate Job ID
+    // ===================================
+
+    if (!jobId) {
+      return res.status(400).json({
+        success: false,
+        message: "Job ID is required",
+      });
+    }
+
+    // ===================================
+    // Find Job
+    // ===================================
+
     const job = await Job.findById(jobId).populate(
       "company",
       "companyName name"
@@ -19,6 +34,17 @@ export const applyJob = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Job not found",
+      });
+    }
+
+    // ===================================
+    // Check Company
+    // ===================================
+
+    if (!job.company) {
+      return res.status(400).json({
+        success: false,
+        message: "Company information not found for this job",
       });
     }
 
@@ -45,7 +71,7 @@ export const applyJob = async (req, res) => {
     if (alreadyApplied) {
       return res.status(400).json({
         success: false,
-        message: "Already Applied",
+        message: "You have already applied for this job",
       });
     }
 
@@ -61,15 +87,13 @@ export const applyJob = async (req, res) => {
     });
 
     // ===================================
-    // Create Notification
+    // Create Student Notification
     // ===================================
 
     await Notification.create({
       student: req.student._id,
       title: "Job Application Submitted",
-      message: `You successfully applied for ${
-        job.title
-      } at ${
+      message: `You successfully applied for ${job.title} at ${
         job.company.companyName ||
         job.company.name ||
         "Company"
@@ -83,7 +107,9 @@ export const applyJob = async (req, res) => {
       application,
     });
   } catch (error) {
-    // Handle duplicate database index error
+    console.error("Apply Job Error:", error);
+
+    // MongoDB duplicate index error
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -93,7 +119,7 @@ export const applyJob = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to submit application",
     });
   }
 };
@@ -108,22 +134,27 @@ export const myApplications = async (req, res) => {
       student: req.student._id,
     })
       .populate("job")
-      .populate("company", "companyName name");
+      .populate("company", "companyName name")
+      .sort({ createdAt: -1 });
 
-    return res.json({
+    return res.status(200).json({
       success: true,
+      count: applications.length,
       applications,
     });
   } catch (error) {
+    console.error("Get My Applications Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to fetch applications",
     });
   }
 };
 
 // ===================================
 // Update Application Status
+// Company Only
 // ===================================
 
 export const updateApplicationStatus = async (req, res) => {
@@ -140,6 +171,13 @@ export const updateApplicationStatus = async (req, res) => {
       "Rejected",
       "Selected",
     ];
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Application status is required",
+      });
+    }
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
@@ -176,8 +214,18 @@ export const updateApplicationStatus = async (req, res) => {
     ) {
       return res.status(403).json({
         success: false,
-        message:
-          "You are not authorized to update this application",
+        message: "You are not authorized to update this application",
+      });
+    }
+
+    // ===================================
+    // Prevent Same Status Update
+    // ===================================
+
+    if (application.status === status) {
+      return res.status(400).json({
+        success: false,
+        message: `Application is already ${status}`,
       });
     }
 
@@ -190,7 +238,7 @@ export const updateApplicationStatus = async (req, res) => {
     await application.save();
 
     // ===================================
-    // Notification on Status Change
+    // Prepare Notification
     // ===================================
 
     let title = "";
@@ -211,7 +259,7 @@ export const updateApplicationStatus = async (req, res) => {
     // Create Notification
     // ===================================
 
-    if (title) {
+    if (title && application.student) {
       await Notification.create({
         student: application.student._id,
         title,
@@ -220,15 +268,21 @@ export const updateApplicationStatus = async (req, res) => {
       });
     }
 
+    // ===================================
+    // Success Response
+    // ===================================
+
     return res.status(200).json({
       success: true,
-      message: "Application status updated successfully",
+      message: `Application status updated to ${status}`,
       application,
     });
   } catch (error) {
+    console.error("Update Application Status Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Failed to update application status",
     });
   }
 };

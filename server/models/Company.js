@@ -13,24 +13,35 @@ const companySchema = new mongoose.Schema(
       required: true,
       unique: true,
       lowercase: true,
+      trim: true,
     },
 
     password: {
       type: String,
       required: true,
+      select: false,
     },
 
     website: {
       type: String,
       default: "",
+      trim: true,
     },
 
     location: {
       type: String,
       default: "",
+      trim: true,
     },
 
     description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    // Company Logo
+    logo: {
       type: String,
       default: "",
     },
@@ -40,6 +51,9 @@ const companySchema = new mongoose.Schema(
   }
 );
 
-const Company = mongoose.model("Company", companySchema);
+const Company = mongoose.model(
+  "Company",
+  companySchema
+);
 
 export default Company;

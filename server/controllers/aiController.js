@@ -1,22 +1,45 @@
-import Job from "../models/Job.js";
-
-// ==========================
+// ==========================================
 // AI Resume Analyzer
-// ==========================
+// ==========================================
 
 export const analyzeResume = async (req, res) => {
   try {
-    const { resumeText = "", skills = [] } = req.body;
+    const {
+      resumeText = "",
+      skills = [],
+    } = req.body;
+
+    // ======================================
+    // Prepare Resume Text
+    // ======================================
 
     let text = "";
 
     if (Array.isArray(skills) && skills.length > 0) {
-      text = skills.join(", ");
+      text = skills.join(" ");
     } else if (Array.isArray(resumeText)) {
-      text = resumeText.join(", ");
+      text = resumeText.join(" ");
     } else {
       text = String(resumeText || "");
     }
+
+    text = text.trim();
+
+    // ======================================
+    // Validation
+    // ======================================
+
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Resume text or skills are required for analysis",
+      });
+    }
+
+    // ======================================
+    // Required Skills
+    // ======================================
 
     const requiredSkills = [
       "React",
@@ -31,83 +54,159 @@ export const analyzeResume = async (req, res) => {
       "Docker",
     ];
 
+    // ======================================
+    // Learning Resources
+    // ======================================
+
     const learningResources = {
       React: {
         course: "React Official Documentation",
         link: "https://react.dev",
       },
+
       Node: {
-        course: "Node.js Official Guide",
+        course: "Node.js Official Documentation",
         link: "https://nodejs.org/en/docs",
       },
+
       Express: {
-        course: "Express Documentation",
+        course: "Express.js Documentation",
         link: "https://expressjs.com",
       },
+
       MongoDB: {
         course: "MongoDB University",
         link: "https://learn.mongodb.com",
       },
+
       JavaScript: {
         course: "JavaScript.info",
         link: "https://javascript.info",
       },
+
       HTML: {
-        course: "MDN HTML Guide",
-        link: "https://developer.mozilla.org/en-US/docs/Web/HTML",
+        course: "MDN HTML",
+        link:
+          "https://developer.mozilla.org/en-US/docs/Web/HTML",
       },
+
       CSS: {
-        course: "MDN CSS Guide",
-        link: "https://developer.mozilla.org/en-US/docs/Web/CSS",
+        course: "MDN CSS",
+        link:
+          "https://developer.mozilla.org/en-US/docs/Web/CSS",
       },
+
       Git: {
-        course: "Git SCM",
+        course: "Git SCM Documentation",
         link: "https://git-scm.com/docs",
       },
+
       SQL: {
         course: "SQLBolt",
         link: "https://sqlbolt.com",
       },
+
       Docker: {
         course: "Docker Getting Started",
-        link: "https://docs.docker.com/get-started",
+        link:
+          "https://docs.docker.com/get-started",
       },
     };
 
-    const resume = text.toLowerCase();
+    // ======================================
+    // Normalize Resume
+    // ======================================
 
-    const matchedSkills = requiredSkills.filter((skill) =>
-      resume.includes(skill.toLowerCase())
+    const normalizedResume = text.toLowerCase();
+
+    // ======================================
+    // Find Matched Skills
+    // ======================================
+
+    const matchedSkills = requiredSkills.filter(
+      (skill) =>
+        normalizedResume.includes(
+          skill.toLowerCase()
+        )
     );
+
+    // ======================================
+    // Find Missing Skills
+    // ======================================
 
     const missingSkills = requiredSkills.filter(
-      (skill) => !matchedSkills.includes(skill)
+      (skill) =>
+        !matchedSkills.includes(skill)
     );
+
+    // ======================================
+    // Calculate Resume Score
+    // ======================================
 
     const score = Math.round(
-      (matchedSkills.length / requiredSkills.length) * 100
+      (matchedSkills.length /
+        requiredSkills.length) *
+        100
     );
 
-    let recommendation = "";
+    // ======================================
+    // Recommendation
+    // ======================================
+
+    let recommendation;
 
     if (score >= 80) {
-      recommendation = "Excellent Resume";
+      recommendation =
+        "Excellent Resume";
     } else if (score >= 60) {
-      recommendation = "Good Resume. Improve missing skills.";
+      recommendation =
+        "Good Resume. Improve the missing skills to increase your score.";
+    } else if (score >= 40) {
+      recommendation =
+        "Average Resume. Add more relevant technical skills.";
     } else {
-      recommendation = "Needs Improvement. Learn the missing skills.";
+      recommendation =
+        "Resume needs improvement. Focus on learning the missing skills.";
     }
 
-    const recommendedCourses = missingSkills.map((skill) => ({
-      skill,
-      course: learningResources[skill].course,
-      link: learningResources[skill].link,
-    }));
+    // ======================================
+    // Recommended Courses
+    // ======================================
 
-    res.json({
+    const recommendedCourses =
+      missingSkills.map((skill) => ({
+        skill,
+
+        course:
+          learningResources[skill]?.course ||
+          "Learn Online",
+
+        link:
+          learningResources[skill]?.link ||
+          "",
+      }));
+
+    // ======================================
+    // Response
+    // ======================================
+
+    return res.status(200).json({
       success: true,
 
       score,
+
+      currentScore: score,
+
+      potentialScore: 100,
+
+      totalSkills:
+        requiredSkills.length,
+
+      matchedCount:
+        matchedSkills.length,
+
+      missingCount:
+        missingSkills.length,
 
       matchedSkills,
 
@@ -116,80 +215,19 @@ export const analyzeResume = async (req, res) => {
       recommendation,
 
       recommendedCourses,
-
-      currentScore: score,
-
-      potentialScore: 100,
     });
-
   } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-
-  }
-};
-
-// ==========================
-// AI Job Recommendation
-// ==========================
-
-export const recommendJobs = async (req, res) => {
-
-  try {
-
-    const skills = req.query.skills
-      ? req.query.skills
-          .split(",")
-          .map((s) => s.trim().toLowerCase())
-      : [];
-
-    const jobs = await Job.find().populate("company", "name");
-
-    const recommendations = jobs.map((job) => {
-
-      const matchedSkills = job.skills.filter((skill) =>
-        skills.includes(skill.toLowerCase())
-      );
-
-      const matchPercentage =
-        job.skills.length === 0
-          ? 0
-          : Math.round(
-              (matchedSkills.length / job.skills.length) * 100
-            );
-
-      return {
-        _id: job._id,
-        title: job.title,
-        company: job.company?.name || "Company",
-        location: job.location,
-        salary: job.salary,
-        skills: job.skills,
-        matchedSkills,
-        matchPercentage,
-      };
-
-    });
-
-    recommendations.sort(
-      (a, b) => b.matchPercentage - a.matchPercentage
+    console.error(
+      "Resume Analyzer Error:",
+      error
     );
 
-    res.json({
-      success: true,
-      recommendations,
-    });
-
-  } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: error.message,
+
+      message:
+        error.message ||
+        "Unable to analyze resume",
     });
-
   }
-
 };

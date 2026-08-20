@@ -1,13 +1,18 @@
 import express from "express";
+
 import {
   analyzeResume,
-  recommendJobs,
 } from "../controllers/aiController.js";
 
 const router = express.Router();
 
-router.post("/resume-score", analyzeResume);
+// =====================================
+// AI Resume Analyzer
+// =====================================
 
-router.get("/recommend-jobs", recommendJobs);
+router.post(
+  "/resume-score",
+  analyzeResume
+);
 
 export default router;
